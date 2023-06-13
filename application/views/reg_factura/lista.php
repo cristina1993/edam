@@ -63,6 +63,7 @@
 							<th>Ruc</th>
 							<th>Proveedor</th>
 							<th>Concepto</th>
+							<th>No.Ingreso</th>
 							<th>Total Valor</th>
 							<th>Estado</th>
 							<th>Ajustes</th>
@@ -87,6 +88,7 @@
 								<td style="mso-number-format:'@'"><?php echo $factura->cli_ced_ruc?></td>
 								<td ><?php echo $factura->cli_raz_social?></td>
 								<td style="mso-number-format:'@'"><?php echo $factura->reg_concepto?></td>
+								<td style="mso-number-format:'@'"><?php echo $factura->reg_num_ingreso?></td>
 								<td style="text-align: right;"><?php echo number_format($factura->reg_total,$dec)?></td>
 
 								<td ><?php echo $factura->est_descripcion?></td>

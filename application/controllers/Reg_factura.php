@@ -193,6 +193,9 @@ class Reg_factura extends CI_Controller {
 						'ctaxpagar'=>0,
 						'ret_url'=>base_url().'retencion/nuevo_reg/'.$opc_id,
 						'registro'=>$registro,
+						'orden_compra'=>0,
+						'ingreso'=>0,
+						'guia'=>0,
 						);
 			$this->load->view('reg_factura/form',$data);
 			$modulo=array('modulo'=>'reg_factura');
@@ -507,6 +510,25 @@ class Reg_factura extends CI_Controller {
 			if(!empty($rst_cxp)){
 				$cxp=1;
 			}
+
+			$rst_orc=$this->reg_factura_model->lista_una_orden_compra($rst->reg_num_ingreso);
+			$tot_orc=0;
+			if(!empty($rst_orc->orc_sub12) && !empty($rst_orc->orc_sub0)){
+				$tot_orc=$rst_orc->orc_sub12+$rst_orc->orc_sub0;
+			}
+
+			$rst_ing=$this->reg_factura_model->suma_ingreso($rst->reg_num_ingreso);
+			$tot_ing=0;
+			if(!empty($rst_ing->valor)){
+				$tot_ing=$rst_ing->valor;
+			}
+
+			$rst_gui=$this->reg_factura_model->suma_guia($rst->reg_num_ingreso);
+			$tot_gui=0;
+			if(!empty($rst_gui->valor)){
+				$tot_gui=$rst_gui->valor;
+			}
+
 			$data=array(
 						'ctrl_inv'=>$this->configuracion_model->lista_una_configuracion('6'),
 						'dec'=>$this->configuracion_model->lista_una_configuracion('2'),
@@ -535,6 +557,9 @@ class Reg_factura extends CI_Controller {
 						'ctaxpagar'=>$cxp,
 						'ret_url'=>base_url().'retencion/nuevo_reg/'.$opc_id,
 						'registro'=>0,
+						'orden_compra'=>$tot_orc,
+						'ingreso'=>$tot_ing,
+						'guia'=>$tot_gui,
 						);
 			
 			$this->load->view('layout/header',$this->menus());
@@ -597,7 +622,7 @@ class Reg_factura extends CI_Controller {
 		$this->form_validation->set_rules('reg_relacionado','Documento Relacionado','required');
 		$this->form_validation->set_rules('reg_num_documento','Numero Documento','required');
 		$this->form_validation->set_rules('reg_num_autorizacion','Numero Autorizacion','required');
-		$this->form_validation->set_rules('reg_tpcliente','Tipo Proveedor','required');
+		// $this->form_validation->set_rules('reg_tpcliente','Tipo Proveedor','required');
 		$this->form_validation->set_rules('reg_ruc_cliente','Proveedor RUC/CI','required');
 		$this->form_validation->set_rules('nombre','Proveedor Razon Social','required');
 		$this->form_validation->set_rules('direccion_cliente','Direccion','required');
@@ -821,45 +846,55 @@ class Reg_factura extends CI_Controller {
 
 			$rst_opc=$this->opcion_model->lista_una_opcion($opc_id);
 			$rst_nc=$this->reg_factura_model->lista_nota_credito_factura($id);
+			$rst_nd=$this->reg_factura_model->lista_nota_debito_factura($id);
 			$rst_ret=$this->reg_factura_model->lista_retencion_factura($id);
 			if(empty($rst_ret)){
 				if(empty($rst_nc)){
-					$rst_fac=$this->reg_factura_model->lista_una_factura($id);
-					$ctaxpg=$this->ctasxpagar_model->lista_ctasxpagar($id);
+					if(empty($rst_nd)){
+						$rst_fac=$this->reg_factura_model->lista_una_factura($id);
+						$ctaxpg=$this->ctasxpagar_model->lista_ctasxpagar($id);
 
-				    $up_dtp=array('pag_estado'=>3);
-				    $this->reg_factura_model->update_pagos($id,$up_dtp);
-				    ///anular asientos pagos factura
-				    if(!empty($ctaxpg)){
-						foreach ($ctaxpg as $cxp) {
-							if($cnf_as==0){
-								$this->asiento_anulacion($cxp->ctp_id,'11');
+					    $up_dtp=array('pag_estado'=>3);
+					    $this->reg_factura_model->update_pagos($id,$up_dtp);
+					    ///anular asientos pagos factura
+					    if(!empty($ctaxpg)){
+							foreach ($ctaxpg as $cxp) {
+								if($cnf_as==0){
+									$this->asiento_anulacion($cxp->ctp_id,'11');
+								}
 							}
-						}
-					}	
+						}	
 
-				    $up_dtf=array('reg_estado'=>3);
-					if($this->reg_factura_model->update($id,$up_dtf)){
-						//asiento anulacion factura
-						if($cnf_as==0){
-							$this->asiento_anulacion($id,'5');
-						}
+					    $up_dtf=array('reg_estado'=>3);
+						if($this->reg_factura_model->update($id,$up_dtf)){
+							//asiento anulacion factura
+							if($cnf_as==0){
+								$this->asiento_anulacion($id,'5');
+							}
 
-						$data_aud=array(
-										'usu_id'=>$this->session->userdata('s_idusuario'),
-										'adt_date'=>date('Y-m-d'),
-										'adt_hour'=>date('H:i'),
-										'adt_modulo'=>'REGISTO FACTURA',
-										'adt_accion'=>'ANULAR',
-										'adt_ip'=>$_SERVER['REMOTE_ADDR'],
-										'adt_documento'=>$num,
-										'usu_login'=>$this->session->userdata('s_usuario'),
+							$data_aud=array(
+											'usu_id'=>$this->session->userdata('s_idusuario'),
+											'adt_date'=>date('Y-m-d'),
+											'adt_hour'=>date('H:i'),
+											'adt_modulo'=>'REGISTO FACTURA',
+											'adt_accion'=>'ANULAR',
+											'adt_ip'=>$_SERVER['REMOTE_ADDR'],
+											'adt_documento'=>$num,
+											'usu_login'=>$this->session->userdata('s_usuario'),
+											);
+							$this->auditoria_model->insert($data_aud);
+							$data=array(
+											'estado'=>0,
+											'url'=>strtolower($rst_opc->opc_direccion).$opc_id,
 										);
-						$this->auditoria_model->insert($data_aud);
+						}
+					}else{
 						$data=array(
-										'estado'=>0,
+										'estado'=>1,
+										'sms'=>'No se puede anular. El Documento tiene una Nota de Debito',
 										'url'=>strtolower($rst_opc->opc_direccion).$opc_id,
 									);
+					
 					}
 				}else{
 						$data=array(
@@ -1159,8 +1194,8 @@ class Reg_factura extends CI_Controller {
                     'con_concepto'=>$rst->reg_concepto,
                     'con_documento'=>$rst->reg_num_documento,
                     'con_fecha_emision'=>$rst->reg_femision,
-                    'con_concepto_debe'=>'',
-                    'con_concepto_haber'=>$ccli->pln_codigo,
+                    'con_concepto_debe'=>'0',
+                    'con_concepto_haber'=>$ccli->pln_id,
                     'con_valor_debe'=>'0.00',
                     'con_valor_haber'=>$total,
                     'mod_id'=>'5',
@@ -1177,8 +1212,8 @@ class Reg_factura extends CI_Controller {
                         'con_concepto'=>$rst->reg_concepto,
                         'con_documento'=>$rst->reg_num_documento,
                         'con_fecha_emision'=>$rst->reg_femision,
-                        'con_concepto_debe'=>$iva->pln_codigo,
-                        'con_concepto_haber'=>'',
+                        'con_concepto_debe'=>$iva->pln_id,
+                        'con_concepto_haber'=>'0',
                         'con_valor_debe'=>round($rst->reg_iva12, $dec),
                         'con_valor_haber'=>'0.00',
                         'mod_id'=>'5',
@@ -1195,8 +1230,8 @@ class Reg_factura extends CI_Controller {
                         'con_concepto'=>$rst->reg_concepto,
                         'con_documento'=>$rst->reg_num_documento,
                         'con_fecha_emision'=>$rst->reg_femision,
-                        'con_concepto_debe'=>'',
-                        'con_concepto_haber'=>$des->pln_codigo,
+                        'con_concepto_debe'=>'0',
+                        'con_concepto_haber'=>$des->pln_id,
                         'con_valor_debe'=>'0.00',
                         'con_valor_haber'=>round($rst->reg_tdescuento, $dec),
                         'mod_id'=>'5',
@@ -1213,8 +1248,8 @@ class Reg_factura extends CI_Controller {
                         'con_concepto'=>$rst->reg_concepto,
                         'con_documento'=>$rst->reg_num_documento,
                         'con_fecha_emision'=>$rst->reg_femision,
-                        'con_concepto_debe'=>$pro->pln_codigo,
-                        'con_concepto_haber'=>'',
+                        'con_concepto_debe'=>$pro->pln_id,
+                        'con_concepto_haber'=>'0',
                         'con_valor_debe'=>round($rst->reg_propina, $dec),
                         'con_valor_haber'=>'0.00',
                         'mod_id'=>'5',
@@ -1234,8 +1269,8 @@ class Reg_factura extends CI_Controller {
                         'con_concepto'=>$rst->reg_concepto,
                         'con_documento'=>$rst->reg_num_documento,
                         'con_fecha_emision'=>$rst->reg_femision,
-                        'con_concepto_debe'=>$det->reg_codigo_cta,
-                        'con_concepto_haber'=>'',
+                        'con_concepto_debe'=>$det->pln_id,
+                        'con_concepto_haber'=>'0',
                         'con_valor_debe'=>round($det->dtot,$dec) + round($det->ddesc, $dec),
                         'con_valor_haber'=>'0.00',
                         'mod_id'=>'5',
@@ -1255,8 +1290,8 @@ class Reg_factura extends CI_Controller {
                         'con_concepto'=>$rst->reg_concepto,
                         'con_documento'=>$rst_ret->ret_numero,
                         'con_fecha_emision'=>$rst_ret->ret_fecha_emision,
-                        'con_concepto_debe'=>'',
-                        'con_concepto_haber'=>$imp->pln_codigo,
+                        'con_concepto_debe'=>'0',
+                        'con_concepto_haber'=>$imp->pln_id,
                         'con_valor_debe'=>'0.00',
                         'con_valor_haber'=>round($dtr->dtr_valor,$dec),
                         'mod_id'=>'4',

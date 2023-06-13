@@ -40,6 +40,8 @@
             $col_obs='8';
             $hidden_as='';
           }
+
+
           if($this->session->flashdata('error')){
             ?>
         <div class="alert alert-danger alert-dismissible">
@@ -69,6 +71,9 @@
                             <?php echo form_error("reg_femision","<span class='help-block'>","</span>");?>
                           </div>
                           <input type="hidden" class="form-control" name="emp_id" id="emp_id" value="<?php if(validation_errors()!=''){ echo set_value('emp_id');}else{ echo $factura->emp_id;}?>">
+                           <input type="hidden" class="form-control" name="orden_compra" id="orden_compra" value="<?php echo $orden_compra;?>">
+                           <input type="hidden" class="form-control" name="ingreso" id="ingreso" value="<?php echo $ingreso;?>">
+                           <input type="hidden" class="form-control" name="guia" id="guia" value="<?php echo $guia;?>">
                           </div>
                         </td> 
                     </tr>    
@@ -151,17 +156,8 @@
                         <div class="col-xs-4">
                           <input type="text"  class="form-control" id="reg_num_documento2"  maxlength="9" value="<?php echo $dn[2] ?>" onkeyup=" this.value = this.value.replace(/[^0-9]/, '')" onchange="completar_ceros(this, 1)" <?php echo $read_ret ?> <?php echo $read_cxp?>/>
                         </div>
-                         
-                       
-
                       </div>  
-                           
-                       
-                      
-                        
-                        
-
-                        </div>
+                      </div>
                     </td>
                   </tr>
                   <tr>
@@ -173,7 +169,7 @@
                       </div>
                     </td>
                   </tr>
-                  <tr hidden>
+                  <tr>
                     <td colspan="2"><label>Tipo Proveedor</label></td>
                       <td>
                         <div class="form-group ">
@@ -293,8 +289,7 @@
                           </div>
                         </td>
                       </tr>
-                      
-                        <tr hidden>
+                      <tr>
                           <td><label>Pais Origen:</label></td>
                           <td>
                             <div class="form-group ">
@@ -318,7 +313,7 @@
                             </div>
                           </td>    
                           </tr>
-                          <tr hidden>
+                          <tr>
                             <td><label>Tipo Pago:</label></td>
                             <td>
                               <div class="form-group ">
@@ -394,6 +389,7 @@
                       <tbody id="tb_pagos">
                       <?php
                         $m=1;
+                        $val_det=0;
                         if(empty($cns_pagos)){
                       ?>  
                           <tr>
@@ -580,6 +576,7 @@
                                   if(!empty($cns_det)){
                                   $cnt_detalle=0;
                                   $n=0;
+                                  $val_det=0;
                                     foreach($cns_det as $rst_det) {
                                         $n++;
                                         ?>
@@ -638,6 +635,7 @@
                                             <td onclick="elimina_fila_det(this)" align="center" <?php echo $hid_ret?> <?php echo $hid_cxp?>><span class="btn btn-danger fa fa-trash"></span></td>
                                         </tr>
                                         <?php
+                                        $val_det+=$rst_det->cantidad;
                                         $cnt_detalle++;
                                     }
                                   }
@@ -730,6 +728,7 @@
                 <input type="hidden" class="form-control" id="verifica_cuenta" name="verifica_cuenta" value="<?php echo $verifica_cuenta?>">
                 <input type="hidden" class="form-control" id="ctaxpagar" name="ctaxpagar" value="<?php echo $ctaxpagar?>">
                 <input type="hidden" class="form-control" id="retencion" name="retencion" value="<?php echo $retencion?>">
+                <input type="hidden" class="form-control" id="val_det" name="val_det" value="<?php echo $val_det?>">
               <div class="box-footer">
                 <button type="button" class="btn btn-primary" onclick="save()">Guardar</button>
                 <a href="<?php echo $cancelar;?>" class="btn btn-default">Cancelar</a>
@@ -1117,7 +1116,7 @@
                       success: function (dt) {
                           if(dt!=""){
                             //alert('EL numero de Documento y el RUC/CI del Proveedor \n Ya existen en el Registro de Facturas');  
-                            swal("", "EL numero de Documento y el RUC/CI del Proveedor \n Ya existen en el Registro de Facturas", "info");  
+                            Swal.fire("", "EL numero de Documento y el RUC/CI del Proveedor \n Ya existen en el Registro de Facturas", "info");  
                             $('#reg_num_documento').val('');
                             $('#reg_num_documento0').val('');
                             $('#reg_num_documento1').val('');
@@ -1496,6 +1495,7 @@
                 var tib = 0;
                 var sub = 0;
                 var prop=0;
+                var t_cant=0;
 
                 while (n < i) {
                     n++;
@@ -1538,7 +1538,10 @@
                         val = $('#valor_total' + n).val().replace(',', '');
                         d = $('#descuent' + n).val().replace(',', '');
                         $('#ice' + n).val(pic.toFixed(dec));
+                        
                     }
+
+                    t_cant+=round(cnt,dec);
 
                     tdsc = (round(tdsc,dec) * 1) + (round(d,dec) * 1);
                     tice = (round(tice,dec) * 1) + (round(pic,dec) * 1);
@@ -1578,6 +1581,7 @@
                 $('#total_ice').val(tice.toFixed(dec));
                 $('#total_valor').val(gtot.toFixed(dec));
                 $('#pag_valor1').val(gtot.toFixed(dec));
+                $('#val_det').val(t_cant);
                 calculo_total_pago();
             }     
 
@@ -1726,10 +1730,34 @@
                           return false;
                         }
 
+                        
+
+                        if(parseFloat($('#orden_compra').val())!=0 ){
+                          if(parseFloat($('#orden_compra').val())!=parseFloat($('#subtotal').val())){
+                            alert('El detalle fue cambiado revise movimientos \nde la orden de compra en Kardex');
+                            
+                          }
+                        }
+
+                        if(parseFloat($('#ingreso').val())!=0 ){
+                          if(parseFloat($('#ingreso').val())!=parseFloat($('#subtotal').val())){
+                            alert('El detalle fue cambiado revise movimientos \ndel ingreso en Kardex');
+                            
+                          }
+                        }
+
+                        if(parseFloat($('#guia').val())!=0 ){
+                          if(parseFloat($('#guia').val())!=parseFloat($('#val_det').val())){
+                            alert('El detalle fue cambiado revise movimientos \nde la guia en Kardex');
+                            
+                          }
+                        }
+
+
                         if(ast>0 && conf_as==0){
                           v=1;
                           Swal.fire({
-                            title: '¿El detalle de factura no esta completo \ny no se creará el Asiento Contable \n¿Esta Seguro de Guardar?',
+                            title: 'El detalle de factura no esta completo \ny no se creará el Asiento Contable \n¿Esta Seguro de Guardar?',
                             showDenyButton: true,
                             showCancelButton: false,
                             confirmButtonText: 'Guardar',
@@ -1745,6 +1773,8 @@
                             })
 
                         }
+
+
 
                         if(v==0){
                         
