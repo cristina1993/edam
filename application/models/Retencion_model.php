@@ -138,6 +138,14 @@ class Retencion_model extends CI_Model {
 		return $resultado->row();
 			
 	}
+
+	public function lista_un_pais($id){
+		$this->db->from('erp_paises p');
+		$this->db->where('pai_id',$id);
+		$resultado=$this->db->get();
+		return $resultado->row();
+			
+	}
     
 }
 

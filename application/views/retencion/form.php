@@ -61,6 +61,7 @@
                                   <script type="text/javascript">
                                     var vnd='<?php echo $retencion->vnd_id;?>';
                                     vnd_id.value=vnd;
+                                   
                                   </script>
                                 </div>
                               </td>    

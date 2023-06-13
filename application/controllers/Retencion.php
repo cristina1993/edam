@@ -29,7 +29,7 @@ class Retencion extends CI_Controller {
 		$this->load->model('opcion_model');
 		$this->load->model('configuracion_cuentas_model');
 		$this->load->model('asiento_model');
-		$this->load->model('reg_factura_model');
+		$this->load->model('forma_pago_model');
 		$this->load->model('ctasxpagar_model');
 		$this->load->library('html2pdf');
 		$this->load->library('Zend');
@@ -116,11 +116,15 @@ class Retencion extends CI_Controller {
 
 			$usu_id=$this->session->userdata('s_idusuario');
 			$rst_vnd=$this->vendedor_model->lista_un_vendedor_2($usu_id);
+		
 			
 			if(empty($rst_vnd)){
-				$vnd='0';
+				$vnd='';
 			}else{
 				$vnd=$rst_vnd->vnd_id;
+				if ($vnd==1) {
+					$vnd="";
+				}
 			}
 			
 			$this->load->view('layout/header',$this->menus());
@@ -183,12 +187,18 @@ class Retencion extends CI_Controller {
 			}
 
 			$usu_id=$this->session->userdata('s_idusuario');
-			$rst_vnd=$this->vendedor_model->lista_un_vendedor($usu_id);
+			
+
+			$rst_vnd=$this->vendedor_model->lista_un_vendedor_2($usu_id);
+		
 			
 			if(empty($rst_vnd)){
 				$vnd='';
 			}else{
 				$vnd=$rst_vnd->vnd_id;
+				if ($vnd==1) {
+					$vnd="";
+				}
 			}
 
 			$rst_reg=$this->reg_factura_model->lista_una_factura($reg_id);
@@ -844,7 +854,7 @@ class Retencion extends CI_Controller {
 	} 
 
 	public function traer_facturas($num,$emp){
-		$rst=$this->reg_factura_model->lista_factura_numero($num,$emp);
+		$rst=$this->reg_factura_model->lista_factura_numero_registradas($num,$emp);
 		echo json_encode($rst);
 	}
 
@@ -940,6 +950,7 @@ class Retencion extends CI_Controller {
     	$firma=$cred[2];
 		$pass=$cred[1];
     	$retencion=$this->retencion_model->lista_una_retencion($id);
+    	$factura=$this->reg_factura_model->lista_una_factura($retencion->reg_id);
     	$detalle=$this->retencion_model->lista_detalle_retencion($retencion->ret_id);
         $dec = $this->configuracion_model->lista_una_configuracion('2');
         $round=$dec->con_valor;
@@ -976,7 +987,7 @@ class Retencion extends CI_Controller {
         $clave = $retencion->ret_clave_acceso;
 
         $xml.="<?xml version='1.0' encoding='UTF-8'?>" . chr(13);
-	    $xml.="<comprobanteRetencion version='1.0.0' id='comprobante'>" . chr(13);
+	    $xml.="<comprobanteRetencion version='2.0.0' id='comprobante'>" . chr(13);
 	    $xml.="<infoTributaria>" . chr(13);
 	    $xml.="<ambiente>" . $ambiente . "</ambiente>" . chr(13);
 	    $xml.="<tipoEmision>" . $tp_emison . "</tipoEmision>" . chr(13);
@@ -1004,7 +1015,85 @@ class Retencion extends CI_Controller {
 	    $xml.="<periodoFiscal>" . date_format(date_create($retencion->ret_fecha_emision), 'm/Y') . "</periodoFiscal>" . chr(13);
 	    $xml.="</infoCompRetencion>" . chr(13);
 
-	    $xml.="<impuestos>" . chr(13);
+
+	    $xml.="<docsSustento>" . chr(13);
+    $xml.="<docSustento>" . chr(13);
+    $xml.="<codSustento>0" . $factura->reg_sustento . "</codSustento>" . chr(13);
+    $xml.="<codDocSustento>0" . $retencion->ret_denominacion_comp . "</codDocSustento>" . chr(13);
+    $xml.="<numDocSustento>" . str_replace('-', '', $retencion->ret_num_comp_retiene) . "</numDocSustento>" . chr(13);
+    $xml.="<fechaEmisionDocSustento>".date_format(date_create($factura->reg_femision), 'd/m/Y')."</fechaEmisionDocSustento>" . chr(13);
+    $xml.="<fechaRegistroContable>".date_format(date_create($factura->reg_fregistro), 'd/m/Y')."</fechaRegistroContable>" . chr(13);
+    $xml.="<numAutDocSustento>$factura->reg_num_autorizacion</numAutDocSustento>" . chr(13);
+    if($factura->reg_tpcliente=='LOCAL'){
+        $ple='01';
+    }else{
+        $ple='02';
+    }
+    $xml.="<pagoLocExt>$ple</pagoLocExt>" . chr(13);
+    if($factura->reg_tpcliente!='LOCAL'){
+        $rst_pai=$this->retencion_model->lista_un_pais($factura->reg_pais_importe);
+        $xml.="<tipoRegi>01</tipoRegi>" . chr(13);
+        $xml.="<paisEfecPago>$rst_pai->pai_codigo</paisEfecPago>" . chr(13);
+        $xml.="<aplicConvDobTrib>NO</aplicConvDobTrib>" . chr(13);
+        $xml.="<pagExtSujRetNorLeg>NO</pagExtSujRetNorLeg>" . chr(13);
+        $xml.="<pagoRegFis>SI</pagoRegFis>" . chr(13);
+    }
+    ///si es codocSustento 41  
+    if($factura->reg_sustento==41){
+        $xml.="<totalComprobantesReembolso>".round($factura->reg_sbt,$round)+round($factura->reg_iva12,$round)."</totalComprobantesReembolso>". chr(13);
+        $xml.="<totalBaseImponibleReembolso>".round($factura->reg_sbt,$round)."</totalBaseImponibleReembolso>". chr(13);
+        $xml.="<totalImpuestoReembolso>".round($factura->reg_iva12,$round)."</totalImpuestoReembolso>". chr(13);
+    }    
+
+    $xml.="<totalSinImpuestos>".round($factura->reg_sbt,$round)."</totalSinImpuestos>". chr(13);
+    $xml.="<importeTotal>".round($factura->reg_total,$round)."</importeTotal>". chr(13);
+    $xml.="<impuestosDocSustento>". chr(13);
+    //iva12
+    if($factura->reg_sbt12>0){
+        $xml.="<impuestoDocSustento>". chr(13);
+        $xml.="<codImpuestoDocSustento>2</codImpuestoDocSustento>". chr(13);
+        $xml.="<codigoPorcentaje>2</codigoPorcentaje>". chr(13);
+        $xml.="<baseImponible>".round($factura->reg_sbt12,$round)."</baseImponible>". chr(13);
+        $xml.="<tarifa>12</tarifa>". chr(13);
+        $xml.="<valorImpuesto>".round($factura->reg_iva12,$round)."</valorImpuesto>". chr(13);
+        $xml.="</impuestoDocSustento>". chr(13);
+    }
+    //iva0
+    if($factura->reg_sbt0>0){
+        $xml.="<impuestoDocSustento>". chr(13);
+        $xml.="<codImpuestoDocSustento>2</codImpuestoDocSustento>". chr(13);
+        $xml.="<codigoPorcentaje>0</codigoPorcentaje>". chr(13);
+        $xml.="<baseImponible>".round($factura->reg_sbt0,$round)."</baseImponible>". chr(13);
+        $xml.="<tarifa>0</tarifa>". chr(13);
+        $xml.="<valorImpuesto>0.00</valorImpuesto>". chr(13);
+        $xml.="</impuestoDocSustento>". chr(13);
+    }
+
+    //ivano
+    if($factura->reg_sbt_noiva>0){
+        $xml.="<impuestoDocSustento>". chr(13);
+        $xml.="<codImpuestoDocSustento>2</codImpuestoDocSustento>". chr(13);
+        $xml.="<codigoPorcentaje>6</codigoPorcentaje>". chr(13);
+        $xml.="<baseImponible>".round($factura->reg_sbt_noiva,$round)."</baseImponible>". chr(13);
+        $xml.="<tarifa>0</tarifa>". chr(13);
+        $xml.="<valorImpuesto>0.00</valorImpuesto>". chr(13);
+        $xml.="</impuestoDocSustento>". chr(13);
+    }
+
+    //ivaex
+    if($factura->reg_sbt_excento>0){
+        $xml.="<impuestoDocSustento>". chr(13);
+        $xml.="<codImpuestoDocSustento>2</codImpuestoDocSustento>". chr(13);
+        $xml.="<codigoPorcentaje>7</codigoPorcentaje>". chr(13);
+        $xml.="<baseImponible>".round($factura->reg_sbt_excento,$round)."</baseImponible>". chr(13);
+        $xml.="<tarifa>0</tarifa>". chr(13);
+        $xml.="<valorImpuesto>0.00</valorImpuesto>". chr(13);
+        $xml.="</impuestoDocSustento>". chr(13);
+    }
+
+    $xml.="</impuestosDocSustento>". chr(13);
+
+	$xml.="<retenciones>". chr(13);
 	    foreach ($detalle  as $det) {
 	        if ($det->dtr_tipo_impuesto == 'IR') {
 	            $impuesto = '1';
@@ -1013,18 +1102,85 @@ class Retencion extends CI_Controller {
 	        } else {
 	            $impuesto = '3';
 	        }
-	        $xml.="<impuesto>" . chr(13);
+	        $xml.="<retencion>". chr(13);
 	        $xml.="<codigo>" . $impuesto . "</codigo>" . chr(13);
 	        $xml.="<codigoRetencion>" . $det->dtr_codigo_impuesto . "</codigoRetencion>" . chr(13);
 	        $xml.="<baseImponible>" . round($det->dtr_base_imponible, $round) . "</baseImponible>" . chr(13);
 	        $xml.="<porcentajeRetener>" . round($det->dtr_procentaje_retencion, $round) . "</porcentajeRetener>" . chr(13);
 	        $xml.="<valorRetenido>" . round($det->dtr_valor, $round) . "</valorRetenido>" . chr(13);
-	        $xml.="<codDocSustento>0" . $retencion->ret_denominacion_comp . "</codDocSustento>" . chr(13);
-	        $xml.="<numDocSustento>" . str_replace('-', '', $retencion->ret_num_comp_retiene) . "</numDocSustento>" . chr(13);
-	        $xml.="<fechaEmisionDocSustento>" . $fecha . "</fechaEmisionDocSustento>" . chr(13);
-	        $xml.="</impuesto>" . chr(13);
+	        $xml.="</retencion>" . chr(13);
 	    }
-	    $xml.="</impuestos>" . chr(13);
+	    $xml.="</retenciones>" . chr(13);
+
+	    //codDocSustento 41
+	    if($factura->reg_sustento==41){
+	        $id_rembolso = $retencion->ret_identificacion;
+	        if (strlen($id_rembolso) == 13 && $id_comprador != '9999999999999') {
+	            $tipo_id_rembolso = "04"; //RUC 04 
+	        } else if (strlen($id_rembolso) == 10) {
+	            $tipo_id_rembolso = "05"; //CEDULA 05 
+	        } else if ($id_rembolso == '9999999999999') {
+	            $tipo_id_rembolso = "07"; //VENTA A CONSUMIDOR FINAL
+	        } else {
+	            $tipo_id_rembolso = "06"; // PASAPORTE 06 O IDENTIFICACION DELEXTERIOR* 08 PLACA 09            
+	        }
+	        $ndocr = explode('-', $factura->reg_num_documento);
+	        $xml.="<reembolsos>" . chr(13);
+	        $xml.="<reembolsoDetalle>" . chr(13);
+	        $xml.="<tipoIdentificacionProveedorReembolso>$tipo_id_rembolso</tipoIdentificacionProveedorReembolso>" . chr(13);
+	        $xml.="<identificacionProveedorReembolso>$id_rembolso</identificacionProveedorReembolso>" . chr(13);
+	        $rst_pai=$this->retencion_model->lista_un_pais($factura->reg_pais_importe);
+	        $xml.="<codPaisPagoProveedorReembolso>$rst_pai->pai_codigo</codPaisPagoProveedorReembolso>" . chr(13);
+	        $xml.="<tipoProveedorReembolso>$cat</tipoProveedorReembolso>" . chr(13);
+	        $xml.="<codDocReembolso>01</codDocReembolso>" . chr(13);
+	        $xml.="<estabDocReembolso>$ndocr[0]</estabDocReembolso>" . chr(13);
+	        $xml.="<ptoEmiDocReembolso>$ndocr[1]</ptoEmiDocReembolso>" . chr(13);
+	        $xml.="<secuencialDocReembolso>$ndocr[2]</secuencialDocReembolso>" . chr(13);
+	        $xml.="<fechaEmisionDocReembolso>$fecha</fechaEmisionDocReembolso>" . chr(13);
+	        $xml.="<numeroAutorizacionDocReemb>$factura->reg_num_autorizacion</numeroAutorizacionDocReemb>" . chr(13);
+	        $xml.="<detalleImpuestos>" . chr(13);
+	        if($factura->reg_sbt12>0){
+	            $xml.="<detalleImpuesto>" . chr(13);
+	            $xml.="<codigo>2</codigo>" . chr(13);
+	            $xml.="<codigoPorcentaje>2</codigoPorcentaje>" . chr(13);
+	            $xml.="<tarifa>12</tarifa>" . chr(13);
+	            $xml.="<baseImponibleReembolso>".round($factura->reg_sbt12,$round)."</baseImponibleReembolso>" . chr(13);
+	            $xml.="<impuestoReembolso>".round($factura->reg_iva12,$round)."</impuestoReembolso>" . chr(13);
+	            $xml.="</detalleimpuesto>" . chr(13);
+	        }
+	        if($factura->reg_sbt0>0){
+	            $xml.="<detalleImpuesto>" . chr(13);
+	            $xml.="<codigo>2</codigo>" . chr(13);
+	            $xml.="<codigoPorcentaje>0</codigoPorcentaje>" . chr(13);
+	            $xml.="<tarifa>0</tarifa>" . chr(13);
+	            $xml.="<baseImponibleReembolso>".round($factura->reg_sbt0,$round)."</baseImponibleReembolso>" . chr(13);
+	            $xml.="<impuestoReembolso>0.00</impuestoReembolso>" . chr(13);
+	            $xml.="</detalleimpuesto>" . chr(13);
+	        }
+	        if($factura->reg_sbt_excento>0){
+	            $xml.="<detalleImpuesto>" . chr(13);
+	            $xml.="<codigo>2</codigo>" . chr(13);
+	            $xml.="<codigoPorcentaje>7</codigoPorcentaje>" . chr(13);
+	            $xml.="<tarifa>0</tarifa>" . chr(13);
+	            $xml.="<baseImponibleReembolso>".round($factura->reg_sbt_excento,$round)."</baseImponibleReembolso>" . chr(13);
+	            $xml.="<impuestoReembolso>0.00</impuestoReembolso>" . chr(13);
+	            $xml.="</detalleimpuesto>" . chr(13);
+	        }
+	        $xml.="</detalleImpuestos>" . chr(13);
+	        $xml.="</reembolsoDetalle>" . chr(13);
+	        $xml.="</reembolsos>" . chr(13);
+	    } 
+
+	    $rst_pag=$this->forma_pago_model->lista_una_forma_pago_id($factura->reg_forma_pago);
+	    $xml.="<pagos>" . chr(13);
+	    $xml.="<pago>" . chr(13);
+	    $xml.="<formaPago>$rst_pag->fpg_codigo</formaPago>" . chr(13);
+	    $xml.="<total>".round($factura->reg_total,$round)."</total>". chr(13);
+	    $xml.="</pago> " . chr(13);
+	    $xml.="</pagos>" . chr(13);
+	    $xml.="</docSustento>" . chr(13);
+	    $xml.="</docsSustento>" . chr(13); 
+
 	    $xml.="<infoAdicional>" . chr(13);
 	    $xml.="<campoAdicional nombre='Direccion'>" . $dir_cliente . "</campoAdicional>" . chr(13);
 	    $xml.="<campoAdicional nombre='Telefono'>" . $telf_cliente . "</campoAdicional>" . chr(13);
@@ -1235,8 +1391,8 @@ class Retencion extends CI_Controller {
                     'con_concepto'=>$rst->reg_concepto,
                     'con_documento'=>$rst->reg_num_documento,
                     'con_fecha_emision'=>$rst->reg_femision,
-                    'con_concepto_debe'=>'',
-                    'con_concepto_haber'=>$ccli->pln_codigo,
+                    'con_concepto_debe'=>'0',
+                    'con_concepto_haber'=>$ccli->pln_id,
                     'con_valor_debe'=>'0.00',
                     'con_valor_haber'=>$total,
                     'mod_id'=>'5',
@@ -1253,8 +1409,8 @@ class Retencion extends CI_Controller {
                         'con_concepto'=>$rst->reg_concepto,
                         'con_documento'=>$rst->reg_num_documento,
                         'con_fecha_emision'=>$rst->reg_femision,
-                        'con_concepto_debe'=>$iva->pln_codigo,
-                        'con_concepto_haber'=>'',
+                        'con_concepto_debe'=>$iva->pln_id,
+                        'con_concepto_haber'=>'0',
                         'con_valor_debe'=>round($rst->reg_iva12, $dec),
                         'con_valor_haber'=>'0.00',
                         'mod_id'=>'5',
@@ -1271,8 +1427,8 @@ class Retencion extends CI_Controller {
                         'con_concepto'=>$rst->reg_concepto,
                         'con_documento'=>$rst->reg_num_documento,
                         'con_fecha_emision'=>$rst->reg_femision,
-                        'con_concepto_debe'=>'',
-                        'con_concepto_haber'=>$des->pln_codigo,
+                        'con_concepto_debe'=>'0',
+                        'con_concepto_haber'=>$des->pln_id,
                         'con_valor_debe'=>'0.00',
                         'con_valor_haber'=>round($rst->reg_tdescuento, $dec),
                         'mod_id'=>'5',
@@ -1289,8 +1445,8 @@ class Retencion extends CI_Controller {
                         'con_concepto'=>$rst->reg_concepto,
                         'con_documento'=>$rst->reg_num_documento,
                         'con_fecha_emision'=>$rst->reg_femision,
-                        'con_concepto_debe'=>$pro->pln_codigo,
-                        'con_concepto_haber'=>'',
+                        'con_concepto_debe'=>$pro->pln_id,
+                        'con_concepto_haber'=>'0',
                         'con_valor_debe'=>round($rst->reg_propina, $dec),
                         'con_valor_haber'=>'0.00',
                         'mod_id'=>'5',
@@ -1310,8 +1466,8 @@ class Retencion extends CI_Controller {
                         'con_concepto'=>$rst->reg_concepto,
                         'con_documento'=>$rst->reg_num_documento,
                         'con_fecha_emision'=>$rst->reg_femision,
-                        'con_concepto_debe'=>$det->reg_codigo_cta,
-                        'con_concepto_haber'=>'',
+                        'con_concepto_debe'=>$det->pln_id,
+                        'con_concepto_haber'=>'0',
                         'con_valor_debe'=>round($det->dtot,$dec) + round($det->ddesc, $dec),
                         'con_valor_haber'=>'0.00',
                         'mod_id'=>'5',
@@ -1331,8 +1487,8 @@ class Retencion extends CI_Controller {
                         'con_concepto'=>$rst->reg_concepto,
                         'con_documento'=>$rst_ret->ret_numero,
                         'con_fecha_emision'=>$rst_ret->ret_fecha_emision,
-                        'con_concepto_debe'=>'',
-                        'con_concepto_haber'=>$imp->pln_codigo,
+                        'con_concepto_debe'=>'0',
+                        'con_concepto_haber'=>$imp->pln_id,
                         'con_valor_debe'=>'0.00',
                         'con_valor_haber'=>round($dtr->dtr_valor,$dec),
                         'mod_id'=>'4',
@@ -1401,8 +1557,8 @@ class Retencion extends CI_Controller {
                     'con_concepto'=>$rst->reg_concepto,
                     'con_documento'=>$rst->reg_num_documento,
                     'con_fecha_emision'=>$rst->reg_femision,
-                    'con_concepto_debe'=>'',
-                    'con_concepto_haber'=>$ccli->pln_codigo,
+                    'con_concepto_debe'=>'0',
+                    'con_concepto_haber'=>$ccli->pln_id,
                     'con_valor_debe'=>'0.00',
                     'con_valor_haber'=>round($rst->reg_total, $dec),
                     'mod_id'=>'5',
@@ -1419,8 +1575,8 @@ class Retencion extends CI_Controller {
                         'con_concepto'=>$rst->reg_concepto,
                         'con_documento'=>$rst->reg_num_documento,
                         'con_fecha_emision'=>$rst->reg_femision,
-                        'con_concepto_debe'=>$iva->pln_codigo,
-                        'con_concepto_haber'=>'',
+                        'con_concepto_debe'=>$iva->pln_id,
+                        'con_concepto_haber'=>'0',
                         'con_valor_debe'=>round($rst->reg_iva12, $dec),
                         'con_valor_haber'=>'0.00',
                         'mod_id'=>'5',
@@ -1437,8 +1593,8 @@ class Retencion extends CI_Controller {
                         'con_concepto'=>$rst->reg_concepto,
                         'con_documento'=>$rst->reg_num_documento,
                         'con_fecha_emision'=>$rst->reg_femision,
-                        'con_concepto_debe'=>'',
-                        'con_concepto_haber'=>$des->pln_codigo,
+                        'con_concepto_debe'=>'0',
+                        'con_concepto_haber'=>$des->pln_id,
                         'con_valor_debe'=>'0.00',
                         'con_valor_haber'=>round($rst->reg_tdescuento, $dec),
                         'mod_id'=>'5',
@@ -1455,8 +1611,8 @@ class Retencion extends CI_Controller {
                         'con_concepto'=>$rst->reg_concepto,
                         'con_documento'=>$rst->reg_num_documento,
                         'con_fecha_emision'=>$rst->reg_femision,
-                        'con_concepto_debe'=>$pro->pln_codigo,
-                        'con_concepto_haber'=>'',
+                        'con_concepto_debe'=>$pro->pln_id,
+                        'con_concepto_haber'=>'0',
                         'con_valor_debe'=>round($rst->reg_propina, $dec),
                         'con_valor_haber'=>'0.00',
                         'mod_id'=>'5',
@@ -1476,8 +1632,8 @@ class Retencion extends CI_Controller {
                         'con_concepto'=>$rst->reg_concepto,
                         'con_documento'=>$rst->reg_num_documento,
                         'con_fecha_emision'=>$rst->reg_femision,
-                        'con_concepto_debe'=>$det->reg_codigo_cta,
-                        'con_concepto_haber'=>'',
+                        'con_concepto_debe'=>$det->pln_id,
+                        'con_concepto_haber'=>'0',
                         'con_valor_debe'=>round($det->dtot,$dec) + round($det->ddesc, $dec),
                         'con_valor_haber'=>'0.00',
                         'mod_id'=>'5',
@@ -1496,8 +1652,8 @@ class Retencion extends CI_Controller {
                     'con_concepto'=>'ANULACION RETENCION '.$rst->reg_concepto,
                     'con_documento'=>$rst_ret->ret_numero,
                     'con_fecha_emision'=>date('Y-m-d'),
-                    'con_concepto_debe'=>'',
-                    'con_concepto_haber'=>$ccli->pln_codigo,
+                    'con_concepto_debe'=>'0',
+                    'con_concepto_haber'=>$ccli->pln_id,
                     'con_valor_debe'=>'0.00',
                     'con_valor_haber'=>round($rst_ret->ret_total_valor, $dec),
                     'mod_id'=>'4',
