@@ -63,6 +63,9 @@ class Configuracion extends CI_Controller {
 					'conf27'=>$this->configuracion_model->lista_una_configuracion('27'),
 					'conf28'=>$this->configuracion_model->lista_una_configuracion('28'),
 					'conf29'=>$this->configuracion_model->lista_una_configuracion('29'),
+					'conf30'=>$this->configuracion_model->lista_una_configuracion('30'),
+					'conf31'=>$this->configuracion_model->lista_una_configuracion('31'),
+					'conf32'=>$this->configuracion_model->lista_una_configuracion('32'),
 					'action'=>base_url().'configuracion/actualizar',
 				);
 
@@ -117,8 +120,15 @@ class Configuracion extends CI_Controller {
 		$precio_pro = $this->input->post('precio_pro');
 		$cred_aut   = $this->input->post('cred_aut');
 		$chk_upt   = $this->input->post('chk_upt');
-		$chk_img = $this->input->post('chk_img');
-		$cc = $this->input->post('cc');
+		$chk_img   = $this->input->post('chk_img');
+		$cc        = $this->input->post('cc');
+		$chk_iva   = $this->input->post('chk_iva');
+		$por_iva = $this->input->post('por_iva');
+		$cod_iva = $this->input->post('cod_iva');
+		$cred_cobr  = $this->input->post('cred_cobr');
+		$chk_cobr   = $this->input->post('chk_cobr');
+		$cred_anul  = $this->input->post('cred_anul');
+		$chk_anul   = $this->input->post('chk_anul');
 		
 		$this->form_validation->set_rules('nom_sistema','Nombre del Sistema','required');
 		$this->form_validation->set_rules('dec_cantidad','Decimales Cantidad','required');
@@ -140,6 +150,9 @@ class Configuracion extends CI_Controller {
 			$this->configuracion_model->update('27',['con_valor'=>$chk_upt,'con_valor2'=>$cred_aut]);
 			$this->configuracion_model->update('28',['con_valor'=>$chk_img]);
 			$this->configuracion_model->update('29',['con_valor2'=>$cc]);
+			$this->configuracion_model->update('30',['con_valor'=>$chk_iva,'con_valor2'=>$por_iva,'con_valor3'=>$cod_iva]);
+			$this->configuracion_model->update('31',['con_valor'=>$chk_cobr,'con_valor2'=>$cred_cobr]);
+			$this->configuracion_model->update('32',['con_valor'=>$chk_anul,'con_valor2'=>$cred_anul]);
 			
 				$data_aud=array(
 								'usu_id'=>$this->session->userdata('s_idusuario'),
