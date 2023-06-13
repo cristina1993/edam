@@ -121,6 +121,37 @@ class Ingreso_model extends CI_Model {
 		return $resultado->result();
 	}
 
+	public function lista_tipo_documentos($est){
+		$this->db->from('erp_tip_documentos t');
+		$this->db->join('erp_estados e','t.tdc_estado=e.est_id');
+		$this->db->where('tdc_estado',$est);
+		$this->db->order_by('tdc_codigo');
+		$resultado=$this->db->get();
+		return $resultado->result();
+			
+	}
+
+	public function lista_doc_duplicado($id,$num,$tip){
+		$this->db->from('erp_reg_documentos');
+		$this->db->where('cli_id',$id);
+		$this->db->where('reg_num_documento',$num);
+		$this->db->where('reg_tipo_documento',$tip);
+		$this->db->where('reg_estado!=3',null);
+		$resultado=$this->db->get();
+		return $resultado->row();
+			
+	}
+
+	public function lista_guia_duplicado($id,$num){
+		$this->db->from('erp_reg_guias');
+		$this->db->where('cli_id',$id);
+		$this->db->where('rgu_num_documento',$num);
+		$this->db->where('rgu_estado!=3',null);
+		$resultado=$this->db->get();
+		return $resultado->row();
+			
+	}
+
 }
 
 ?>

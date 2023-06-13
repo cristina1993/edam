@@ -25,7 +25,11 @@ class Ingreso extends CI_Controller {
 		$this->load->model('estado_model');
 		$this->load->model('opcion_model');
 		$this->load->model('caja_model');
+		$this->load->model('reg_factura_model');
+		$this->load->model('reg_guia_model');
 		$this->load->library('html2pdf');
+		$this->load->library('html4pdf');
+		$this->load->library('html5pdf');
 		$this->load->library('export_excel');
 	}
 
@@ -59,7 +63,7 @@ class Ingreso extends CI_Controller {
 
 		///buscador 
 		if($_POST){
-			$text= $this->input->post('txt');
+			$text= trim($this->input->post('txt'));
 			$ids= $this->input->post('tipo');
 			$f1= $this->input->post('fec1');
 			$f2= $this->input->post('fec2');	
@@ -125,6 +129,7 @@ class Ingreso extends CI_Controller {
 						'estados'=>$this->estado_model->lista_estados_modulo($this->permisos->opc_id),
 						'cns_clientes'=>$this->cliente_model->lista_clientes_estado('1'),
 						'cns_pro'=>$this->producto_comercial_model->lista_productos_bodega_estado('1'),
+						'tipo_documentos'=>$this->ingreso_model->lista_tipo_documentos('1'),
 						'dec'=>$this->configuracion_model->lista_una_configuracion('2'),
 						'dcc'=>$this->configuracion_model->lista_una_configuracion('1'),
 						'titulo'=>ucfirst(strtolower($rst_cja->emi_nombre)),
@@ -140,6 +145,8 @@ class Ingreso extends CI_Controller {
 					                        'cli_id'=>$cli_id,
 					                        'emp_id'=>$rst_cja->emp_id,
 					                        'emi_id'=>$rst_cja->emi_id,
+					                        'cja_id'=>$rst_cja->cja_id,
+					                        'reg_tipo_documento'=>"",
 										),
 						'action'=>base_url().'ingreso/guardar/'.$opc_id
 						);
@@ -162,10 +169,13 @@ class Ingreso extends CI_Controller {
 	public function guardar($opc_id){
 		$emp_id= $this->input->post('emp_id');
 		$emi_id= $this->input->post('emi_id');
+		$cja_id= $this->input->post('cja_id');
 		$mov_fecha_trans = $this->input->post('mov_fecha_trans');
 		$mov_guia_transporte = $this->input->post('mov_guia_transporte');
 		$trs_id = $this->input->post('trs_id');
 		$cli_id = $this->input->post('cli_id');
+		$reg_tipo_documento = $this->input->post('reg_tipo_documento');
+		$reg_num_documento = $this->input->post('reg_num_documento');
 		$count_det = $this->input->post('count_detalle');
 		
 		$this->form_validation->set_rules('cli_id','Proveedor','required');
@@ -227,18 +237,128 @@ class Ingreso extends CI_Controller {
 					                'mov_val_unit'=>$mov_val_unit,
 					                'mov_val_tot'=>$mov_val_tot,
 					                'mov_usuario'=>strtoupper($this->session->userdata('s_usuario')),
-					                'mov_doc_tipo'=>0,
+					                'mov_doc_tipo'=>$reg_tipo_documento,
+					                'mov_num_fac_entrega'=>$reg_num_documento,
+
 					                
 						);	
 						
 
 						if($this->ingreso_model->insert($data)==false){
-							$sms=1;
+							$sms+=1;
 						}
 					
 					}
 				}	
 			if($sms==0){
+				
+				if($trs_id==28){
+					if($reg_tipo_documento!=0){
+						///registro de factura 
+						$rst_cli=$this->cliente_model->lista_un_cliente($cli_id);
+						if($rst_cli->cli_tipo_cliente==0){
+				    		$tpc='LOCAL';
+				    	}else{
+				    		$tpc='EXTRANJERO';
+				    	}
+						$encabezado=array(
+				                        'reg_fregistro'=>date('Y-m-d'),
+				                        'reg_num_documento'=>$reg_num_documento,
+				                        'reg_fautorizacion'=>'1900-01-01',//fec_aut
+				                        'reg_fcaducidad'=>'1900-01-01',//fec_aut_hasta
+				                        'cli_id'=>$cli_id,
+				                        'reg_ruc_cliente'=>$rst_cli->cli_ced_ruc,
+				                        'reg_estado'=>'7',//estado
+				                        'reg_tipo_documento'=>$reg_tipo_documento,
+				                        'reg_sustento'=>'0',
+				                        'emp_id'=>$emp_id,
+				                        'emi_id'=>$emi_id,
+				                        'cja_id'=>$cja_id,
+				                        'reg_tpcliente'=>$tpc,
+				                        'reg_tipo_pago'=>'01',
+				                        'reg_forma_pago'=>'1',
+				                        'reg_pais_importe'=>'241',
+				                        'reg_relacionado'=>'NO',
+				                        'reg_num_ingreso'=>$secuencial,
+				                    );
+				    
+				    	$fac_id=$this->reg_factura_model->insert($encabezado);
+				    	$m=0;
+				    	while($m < $count_det){
+				    		$m++;
+
+				    		if($this->input->post("pro_id$m") !=''){
+						        $pro_id = $this->input->post("pro_id$m");
+				    			$mov_cantidad = $this->input->post("mov_cantidad$m");
+				    			$mov_val_unit = $this->input->post("mov_cost_unit$m");
+				    			$mov_val_tot = $this->input->post("mov_cost_tot$m");
+				    			$rst_pro=$this->producto_comercial_model->lista_un_producto($pro_id);
+						        $detalle=array(     
+						                             'det_cantidad'=>$mov_cantidad,
+						                             'det_vunit'=>$mov_val_unit,
+						                             'det_descuento_porcentaje'=>0,
+						                             'det_descuento_moneda'=>0,
+						                             'det_total'=>$mov_val_tot,
+						                             'det_impuesto'=>$rst_pro->mp_h,
+						                             'det_tipo'=>$rst_pro->ids,
+						                             'pln_id'=>'0',
+						                             'reg_codigo_cta'=>'',
+						                             'pro_id'=>$pro_id,
+						                             'reg_id'=>$fac_id
+						                         );
+
+					            $this->reg_factura_model->insert_detalle($detalle);
+					        }
+
+						}
+					
+			    	}else{
+			    		///registro guias
+						$rst_cli=$this->cliente_model->lista_un_cliente($cli_id);
+						if($rst_cli->cli_tipo_cliente==0){
+				    		$tpc='LOCAL';
+				    	}else{
+				    		$tpc='EXTRANJERO';
+				    	}
+						$enc_guia=array(
+				                        'rgu_fregistro'=>date('Y-m-d'),
+				                        'rgu_num_documento'=>$reg_num_documento,
+				                        'cli_id'=>$cli_id,
+				                        'rgu_estado'=>'7',//estado
+				                        'rgu_num_ingreso'=>$secuencial,
+				                        'emp_id'=>$emp_id,
+				                        'emi_id'=>$emi_id,
+				                        'cja_id'=>$cja_id,
+				                    );
+				    
+				    	$rgu_id=$this->reg_guia_model->insert($enc_guia);
+				    	$l=0;
+				    	while($l < $count_det){
+				    		$l++;
+
+				    		if($this->input->post("pro_id$l") !=''){
+						        $pro_id = $this->input->post("pro_id$l");
+				    			$mov_cantidad = $this->input->post("mov_cantidad$l");
+				    			$mov_val_unit = $this->input->post("mov_cost_unit$l");
+				    			$mov_val_tot = $this->input->post("mov_cost_tot$l");
+				    			$rst_pro=$this->producto_comercial_model->lista_un_producto($pro_id);
+						        $det_guia=array(     
+						                             'drg_cantidad'=>$mov_cantidad,
+						                             'drg_vunit'=>$mov_val_unit,
+						                             'drg_total'=>$mov_val_tot,
+						                             'drg_tipo'=>$rst_pro->ids,
+						                             'pro_id'=>$pro_id,
+						                             'rgu_id'=>$rgu_id
+						                         );
+
+					            $this->reg_guia_model->insert_detalle($det_guia);
+					        }
+
+						}
+
+			    	}
+				}
+			        
 				$data_aud=array(
 								'usu_id'=>$this->session->userdata('s_idusuario'),
 								'adt_date'=>date('Y-m-d'),
@@ -337,18 +457,40 @@ class Ingreso extends CI_Controller {
     }
 
     public function show_frame($id,$opc_id){
+    	if($_POST){
+			$text= trim($this->input->post('txt'));
+			$fec1= $this->input->post('fec1');
+			$fec2= $this->input->post('fec2');
+			$tipo= $this->input->post('tipo');
+		}else{
+			$fec1=date('Y-m-d');
+			$fec2=date('Y-m-d');
+			$text='';
+			$tipo='26';
+		}
 		$permisos=$this->backend_model->get_permisos($opc_id,$this->session->userdata('s_rol'));
 		$rst_opc=$this->opcion_model->lista_una_opcion($opc_id);
 		$rst_cja=$this->caja_model->lista_una_caja($rst_opc->opc_caja);
     	if($permisos->rop_reporte){
     		$data=array(
 					'titulo'=>'Ingresos a Bodega ',
-					'regresar'=>strtolower($rst_opc->opc_direccion).$rst_opc->opc_id,
+					'regresar'=>base_url().strtolower($rst_opc->opc_direccion).$rst_opc->opc_id,
 					'direccion'=>"ingreso/show_pdf/$opc_id/$id",
+					'fec1'=>$fec1,
+					'fec2'=>$fec2,
+					'txt'=>$text,
+					'estado'=>'',
+					'tipo'=>$tipo,
+					'vencer'=>'',
+					'vencido'=>'',
+					'pagado'=>'',
+					'familia'=>'',
+					'tip'=>'',
+					'detalle'=>'',
 				);
 			$this->load->view('layout/header',$this->menus());
 			$this->load->view('layout/menu',$this->menus());
-			$this->load->view('pdf/frame',$data);
+			$this->load->view('pdf/frame_fecha',$data);
 			$modulo=array('modulo'=>'ingreso');
 			$this->load->view('layout/footer_bodega',$modulo);
 		}
@@ -369,10 +511,34 @@ class Ingreso extends CI_Controller {
 						'ingreso'=>$this->ingreso_model->lista_un_ingreso_secuencial($id),
 						'cns_det'=>$this->ingreso_model->lista_detalle_ingreso_secuencial($id),
 						);
-			$this->html2pdf->filename('ingreso.pdf');
-			$this->html2pdf->paper('a4', 'portrait');
-    		$this->html2pdf->html(utf8_decode($this->load->view('pdf/pdf_ingreso', $data, true)));
-    		$this->html2pdf->output(array("Attachment" => 0));
+
+			$ingreso=$this->ingreso_model->lista_un_ingreso_secuencial($id);
+			$direccion= $ingreso->emp_ciudad."-".$ingreso->emp_pais;
+			// $this->load->view('pdf/pdf_ingreso', $data);
+
+			$this->html4pdf->filename('ingreso.pdf');
+			$this->html4pdf->paper('a4', 'portrait');
+			///$this->html4pdf->empresa($ingreso->emp_nombre,$ingreso->emp_identificacion,$direccion,$ingreso->emp_telefono,$ingreso->emp_logo);
+    		$this->html4pdf->html(utf8_decode($this->load->view('pdf/pdf_ingreso', $data, true)));
+    		$this->html4pdf->output(array("Attachment" => 0));
 		
-    }  
+    } 
+
+    public function doc_duplicado($id,$num,$tip){
+    	if($tip!=0){
+			$rst=$this->ingreso_model->lista_doc_duplicado($id,$num,$tip);
+			if(!empty($rst)){
+				echo $rst->reg_id;
+			}else{
+				echo "";
+			}
+		}else{
+			$rst=$this->ingreso_model->lista_guia_duplicado($id,$num);
+			if(!empty($rst)){
+				echo $rst->rgu_id;
+			}else{
+				echo "";
+			}
+		}
+	} 
 }

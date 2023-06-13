@@ -40,19 +40,20 @@
 					}
 					?>
 				<div>
-					<br><br><br>
+					<br><br>
 				</div>
 				
 				<div class="col-md-8" style="margin-left:-12px">
-					<form action="<?php echo $buscar;?>" method="post">
+					<form action="<?php echo $buscar;?>" method="post" id="frm_buscar">
 						
 					<table width="100%">
 						<tr>
 							<td  class="hidden-mobile" ><label>Buscar:</label></td>
 							<td class="hidden-mobile"><input type="text" id='txt' name='txt' class="form-control" style="width: 180px" value='<?php echo $txt?>'/></td>
-							<td hidden>
+							<td>
 								<select name="tipo" id="tipo" class="form-control" style="width: 200px">
 									<option value="26">PRODUCTO TERMINADO</option>
+									<option value="69">MATERIA PRIMA</option>
 								</select>
 								<script>
 									var tp="<?php echo $ids?>";
@@ -68,7 +69,7 @@
 						</tr>
 
 					</table>
-					</form>
+					
 					<br>
 					<div class="row">
 						<div class="col-md-12">
@@ -77,6 +78,7 @@
 						
 						
 					</div>
+					</form>
 				</div>		
 				
 			</div>
@@ -95,9 +97,9 @@
 							<!-- 	<th>No</th> -->
 								<th>Fecha</th>
 								<th class="hidden-mobile">Documento No</th>
-								<th class="hidden-mobile" >Documento/Informacion</th>
+								<th class="hidden-mobile" hidden >Documento/Informacion</th>
 								<th >Proveedor</th>
-								<th class="hidden-mobile">Codigo</th>
+								<th class="hidden-mobile" hidden>Codigo</th>
 								<th class="hidden-mobile">Descripcion</th>
 								<th class="hidden-mobile">Unidad</th>
 								<th class="hidden-mobile">Tipo</th>
@@ -122,9 +124,9 @@
 								<!-- <td><?php echo $n?></td> -->
 								<td><?php echo $ingreso->mov_fecha_trans?></td>
 								<td class="hidden-mobile" style="mso-number-format:'@'"><?php echo $ingreso->mov_documento?></td>
-								<td class="hidden-mobile" style="mso-number-format:'@'"><?php echo $ingreso->mov_guia_transporte?></td>
+								<td class="hidden-mobile" hidden style="mso-number-format:'@'"><?php echo $ingreso->mov_guia_transporte?></td>
 								<td><?php echo $ingreso->cli_raz_social?></td>
-								<td class="hidden-mobile" style="mso-number-format:'@'"><?php echo $ingreso->mp_c?></td>
+								<td class="hidden-mobile" hidden style="mso-number-format:'@'"><?php echo $ingreso->mp_c?></td>
 								<td class="hidden-mobile"><?php echo $ingreso->mp_d?></td>
 								<td class="hidden-mobile"><?php echo $ingreso->mp_q?></td>
 								<td class="hidden-mobile"><?php echo $ingreso->trs_descripcion?></td>
@@ -136,7 +138,7 @@
 									if($permisos->rop_reporte){
 								?>
 								<td>
-										<a href="<?php echo base_url();?>ingreso/show_frame/<?php echo $ingreso->mov_documento?>/<?php echo $permisos->opc_id?>" class="btn btn-warning" title="RIDE"> <span class="fa fa-file-pdf-o" ></span></a>
+										<a href="#" onclick="envio('<?php echo $ingreso->mov_documento?>',1)" class="btn btn-warning" title="RIDE"> <span class="fa fa-file-pdf-o" ></span></a>
 								</td>		
 								<?php 
 									}
@@ -177,3 +179,15 @@ td{
 </style>
 </section>
 
+<script type="text/javascript">
+	function envio(id,opc){
+		if(opc==0){
+			url='<?php echo $buscar?>';
+		}else if(opc==1){
+			url="<?php echo base_url();?>ingreso/show_frame/"+id+"/<?php echo $permisos->opc_id?>";
+		}
+		
+		$('#frm_buscar').attr('action',url);
+		$('#frm_buscar').submit();
+	}
+</script>
